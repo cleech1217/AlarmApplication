@@ -4,30 +4,33 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.method.MovementMethod
+import android.text.method.ScrollingMovementMethod
 import android.view.View
 import android.widget.Button
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.animation.expandVertically
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.IOException
 import java.io.OutputStream
-import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.net.UnknownHostException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var btnTrigger: Button
     private lateinit var btnStop: Button
+    private lateinit var scrollText: ScrollView
     private var sendMessageTask: SendMessageTask? = null
     private var deactivateMessageTask: DeactivateMessageTask? = null
     private lateinit var statusText: TextView
@@ -54,6 +57,7 @@ class MainActivity : AppCompatActivity() {
         btnTrigger = findViewById(R.id.btnTrigger)
         btnStop = findViewById(R.id.btnStop)
         statusText = findViewById(R.id.statusText)
+        scrollText = findViewById(R.id.sText)
         tvServerStatus = findViewById(R.id.tvServerStatus)
         tvAlarmStatus = findViewById(R.id.tvAlarmStatus)
 
@@ -70,10 +74,10 @@ class MainActivity : AppCompatActivity() {
             logger("Sending Activate command...\n")
             btnTrigger.visibility = View.GONE
             btnStop.visibility = View.VISIBLE
-            Handler(Looper.getMainLooper()).postDelayed( Runnable(){
+            Handler(Looper.getMainLooper()).postDelayed( Runnable {
                 @Override
                 btnStop.isEnabled = true
-            },5000)
+            },500)
         }
 
         btnStop.setOnClickListener {
@@ -83,10 +87,10 @@ class MainActivity : AppCompatActivity() {
             btnStop.visibility = View.GONE
             btnTrigger.visibility = View.VISIBLE
             btnTrigger.isEnabled = false
-            Handler(Looper.getMainLooper()).postDelayed( Runnable(){
+            Handler(Looper.getMainLooper()).postDelayed( Runnable {
                 @Override
                 btnTrigger.isEnabled = true
-            },3000)
+            },300)
         }
     }
 
@@ -138,6 +142,7 @@ class MainActivity : AppCompatActivity() {
     private fun logger(message: String){
         runOnUiThread {
             statusText.append("$formatted\n" + message + "\n")
+            scrollText.fullScroll(View.FOCUS_DOWN)
         }
     }
 
