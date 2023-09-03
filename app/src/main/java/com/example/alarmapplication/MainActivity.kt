@@ -26,7 +26,7 @@ import java.net.Socket
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-
+//trying new branch
 class MainActivity : AppCompatActivity() {
 
     private lateinit var btnTrigger: Button
