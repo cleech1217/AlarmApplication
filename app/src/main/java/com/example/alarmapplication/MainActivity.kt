@@ -19,6 +19,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -32,12 +33,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStop: Button
     private lateinit var scrollText: ScrollView
     private var sendMessageTask: SendMessageTask? = null
-    private var deactivateMessageTask: DeactivateMessageTask? = null
     private lateinit var statusText: TextView
     @RequiresApi(Build.VERSION_CODES.O)
     val current = LocalDateTime.now()
 
-    val serverHost = "192.168.68.101"
+    val serverHost = "192.168.68.103"
     val serverPort = 49152
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -64,77 +64,55 @@ class MainActivity : AppCompatActivity() {
         updateServerStatus("Unknown")
         updateAlarmStatus("Unknown")
 
-        setTriggereButton(false)
         startServerStatusCheck()
 
         btnTrigger.setOnClickListener {
-            sendMessageTask = SendMessageTask()
+            sendMessageTask = SendMessageTask("ACTIVATE_ALARM")
             sendMessageTask?.execute()
-            btnStop.isEnabled = false
             logger("Sending Activate command...\n")
-            btnTrigger.visibility = View.GONE
-            btnStop.visibility = View.VISIBLE
-            Handler(Looper.getMainLooper()).postDelayed( Runnable {
-                @Override
-                btnStop.isEnabled = true
-            },500)
+            initialize_button(false)
         }
 
         btnStop.setOnClickListener {
-            deactivateMessageTask = DeactivateMessageTask()
-            deactivateMessageTask?.execute()
+            sendMessageTask = SendMessageTask("DEACTIVATE_ALARM")
+            sendMessageTask?.execute()
             logger("Sending Deactivate command...\n") //statusText.append("$formatted\nSending Deactivate command...\n")
-            btnStop.visibility = View.GONE
-            btnTrigger.visibility = View.VISIBLE
-            btnTrigger.isEnabled = false
-            Handler(Looper.getMainLooper()).postDelayed( Runnable {
-                @Override
-                btnTrigger.isEnabled = true
-            },300)
+            initialize_button(true)
         }
     }
 
-    private fun setTriggereButton(status: Boolean){
+    private fun initialize_button(flag: Boolean){
+        var flag = flag
         runOnUiThread {
-            btnTrigger.isEnabled = status
+            if (flag){
+                btnStop.visibility = View.GONE
+                btnTrigger.visibility = View.VISIBLE
+                Handler(Looper.getMainLooper()).postDelayed( Runnable {
+                    @Override
+                    btnTrigger.isEnabled = flag
+                },300)
+            }else{
+                btnStop.visibility = View.VISIBLE
+                btnTrigger.visibility = View.GONE
+                Handler(Looper.getMainLooper()).postDelayed( Runnable {
+                    @Override
+                    btnStop.isEnabled = flag.not()
+                },300)
+            }
+
         }
     }
 
-    private suspend fun hasConnection() {
-        withContext(Dispatchers.IO) {
-            //var address: InetAddress = InetAddress.getByName(serverHost)
-            //val timeout = 1500
-            try {
-                //val inetAddress = InetAddress.getByName(serverHost)
-                //logger("inetAddress: $inetAddress")
-                //val reachable = inetAddress.isReachable(3000) // Timeout in milliseconds
-                //logger("$reachable")
-                val startTime = System.currentTimeMillis()
-                val socket = Socket()
-                socket.connect(InetSocketAddress(serverHost, serverPort), 3000) // Timeout in milliseconds
-                socket.close()
-                val endTime = System.currentTimeMillis()
-               //
-                updateServerStatus("Server Up")
-                val responseTime = endTime - startTime
-                logger("Ping: " + responseTime.toString())
-                setTriggereButton(true)
 
-            } catch (e: Exception){
-                logger(e.toString())
-                updateServerStatus("Server Down")
-                setTriggereButton(false)
-            }
+    private fun updateServerStatus(status: String) {
+        runOnUiThread {
+            tvServerStatus.text = "Server Status: $status"
+        }
+    }
 
-            /*if (address.isReachable(timeout)){
-                logger("Server Reached!")
-                updateServerStatus("Server up!")
-            }else{
-                logger("Server unreachable!")
-                updateServerStatus("Server down!")
-            }
-
-            */
+    private fun updateAlarmStatus(status: String) {
+        runOnUiThread {
+            tvAlarmStatus.text = "Alarm Status: $status"
         }
     }
 
@@ -152,92 +130,84 @@ class MainActivity : AppCompatActivity() {
             while (true) {
                 lifecycleScope.launch {
                     logger("Checking server status...")// Stuff that updates the UI
-                    hasConnection()
+
+                    // Replace "YourCommandHere" with the actual command you want to send
+                    val sendMessageTask = SendMessageTask("Check Status")
+                    val serverReply = sendMessageTask.execute()
+
+                    // Wait for the task to complete and access the server reply
+                    //val serverReply = sendMessageTask.getServerReply()
+
+                    if (serverReply != null) {
+                        logger("Server's reply on startserver: $serverReply")
+                        // Process the server reply as needed
+
+                    } else {
+                        logger("Failed to receive server's reply.")
+                    }
+
+                    //hasConnection()
                 }
                 delay(serverStatusCheckInterval)
             }
         }
     }
 
-    /*@RequiresApi(Build.VERSION_CODES.O)
-    private fun checkServerStatus() {
-        try {
-            logger("Establishing connection to $serverHost on port $serverPort...")
-            val inetAddress = InetAddress.getByName(serverHost)
-            val reachable = inetAddress.isReachable(3000) // Timeout in milliseconds
-            logger("Checking if server is reachable...")
-            val serverStatus = if (reachable) "Server Up" else "Server Down"
-            updateServerStatus(serverStatus)
-        } catch (e: UnknownHostException) {
-            e.printStackTrace()
-            updateServerStatus("Server Down")
-        } catch (e: IOException) {
-            e.printStackTrace()
-            updateServerStatus("Server Down")
-        } catch (e: Exception){
-            logger(e.toString())
-            updateServerStatus("Server Down")
-        } finally {
-            updateServerStatus("Server Down")
-        }
-
-    }
-    */
-
-    private fun updateServerStatus(status: String) {
-        runOnUiThread {
-            tvServerStatus.text = "Server Status: $status"
-        }
-    }
-
-    private fun updateAlarmStatus(status: String) {
-        runOnUiThread {
-            tvAlarmStatus.text = "Alarm Status: $status"
-        }
-    }
-
-    private inner class DeactivateMessageTask : AsyncTask<Void, Void, Void>() {
-
-        override fun doInBackground(vararg params: Void?): Void? {
-            val serverHost = "192.168.68.101"
-            val serverPort = 49152
-            //statusText.append("Sending command to " + serverHost + "on port " + serverPort + "\n")
+    private inner class SendMessageTask(command: String) : AsyncTask<Void, Void, String>() {
+        val message = command
+        private var serverReply: String? = null
+        override fun doInBackground(vararg params: Void?): String? {
+            var reply: String? = null
             try {
-                val socket = Socket(serverHost, serverPort)
-                val outputStream: OutputStream = socket.getOutputStream()
+                Socket(serverHost, serverPort).use { socket ->
+                    val outputStream: OutputStream = socket.getOutputStream()
+                    val messageBytes = message.toByteArray()
+                    outputStream.write(messageBytes)
 
-                val message = "DEACTIVATE_ALARM"
-                val messageBytes = message.toByteArray()
-                outputStream.write(messageBytes)
+                    val inputStream: InputStream = socket.getInputStream()
+                    val replyBytes = ByteArray(1024)
+                    val bytesRead = inputStream.read(replyBytes)
 
-                outputStream.close()
-                socket.close()
+                    if (bytesRead > 0) {
+                        serverReply = String(replyBytes, 0, bytesRead)
+                        logger("On background"+serverReply.toString())
+                    }
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 logger(e.toString())
             }
-            return null
+            logger("On background before return"+serverReply.toString())
+            return serverReply
         }
-    }
+        fun getServerReply(): String? {
+            return serverReply
+        }
+        override fun onPostExecute(result: String?) {
+            // Handle the server's reply here
+            try{
+                if (result != null) {
+                    // Process the reply
+                    logger("onPOSTExecute: Server's reply: $result")
+                    updateServerStatus("Server Up")
+                    updateAlarmStatus(result)
+                    if(result == "Alarm Deactivated"){
+                        initialize_button(true)
+                    }else if (result == "Alarm Activated"){
+                        initialize_button(false)
+                    }
 
-    private inner class SendMessageTask : AsyncTask<Void, Void, Void>() {
-
-        override fun doInBackground(vararg params: Void?): Void? {
-            try {
-                val socket = Socket(serverHost, serverPort)
-                val outputStream: OutputStream = socket.getOutputStream()
-
-                val message = "ACTIVATE_ALARM"
-                val messageBytes = message.toByteArray()
-                outputStream.write(messageBytes)
-
-                outputStream.close()
-                socket.close()
-            } catch (e: Exception) {
+                } else {
+                    logger("onPOSTExecute: Failed to receive server's reply.")
+                    updateServerStatus("Server Down")
+                    btnTrigger.isEnabled = false
+                    btnStop.isEnabled = false
+                }
+            }catch (e: Exception) {
                 e.printStackTrace()
+                updateServerStatus("Server Down")
                 logger(e.toString())
             }
-            return null
         }
     }
 }
